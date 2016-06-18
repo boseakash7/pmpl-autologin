@@ -28,7 +28,7 @@ FINAL_MESSAGES = {
     'login': 'We have been able to log you in.',
     'logout': 'You are now logged out.',
     'renew': 'Please renew your package.',
-    'unknown': 'Well, there might be some problem, try to use browser.',
+    'unknown': 'Well, Error getting message, normally you are logged in or try to use browser.',
     'wup': 'Wrong username/password, please reconfigure.'
 }
 
@@ -199,8 +199,8 @@ def printHelp():
     print(
         """
            PMPL-AUTO LOGIN version %s
-           Please report bugs to our git hub page: https://github.com/boseakash7/pmpl-autologin
-
+           Please report bugs to our git hub page: https://github.com/rajajoddar/pmpl-autologin
+           Contributors : Raja Joddar & Akash Bose
            example: %s -l
 
            -l --log-in      send a log in request.
