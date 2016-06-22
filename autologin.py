@@ -1,19 +1,22 @@
-import urllib
-# import urllib2
 import time
 import sys
 import pprint, getopt, os, re
+import string, random, glob, subprocess, pickle, tempfile
 
-SCRIP_VERION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 
 PY_VERSION_MAJOR = sys.version_info.major
 PY_VERSION_MINOR = sys.version_info.minor
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CURRENT_FILE = os.path.basename(__file__)
+SESSION_DIR = tempfile.gettempdir()     # Session dir will be temp file dir.
 
 # This is the configuration file name.
 CONFIG_FILE_NAME = 'config.al'
+
+# Session file extension.
+SESSION_FILE_EXT = '.al.session'
 
 # This is the config file path
 CONFIG_PATH = os.path.join(CURRENT_DIR, CONFIG_FILE_NAME)
@@ -28,9 +31,12 @@ FINAL_MESSAGES = {
     'login': 'We have been able to log you in.',
     'logout': 'You are now logged out.',
     'renew': 'Please renew your package.',
-    'unknown': 'Well, there might be some problem, try to use browser.',
+    'unknown': 'Well, Error getting message, normally you are logged in or try to use browser.',
     'wup': 'Wrong username/password, please reconfigure.'
 }
+
+# Regex for session name.
+REGEX_SESSION_FILE_NAME = r'[a-zA-Z0-9]{30}' + SESSION_FILE_EXT
 
 
 def getStatusFromPage(page):
@@ -46,7 +52,7 @@ def getStatusFromPage(page):
         'wup':      b'<([^\S]|)font[^\S](.*)>Wrong username'
     }
 
-    iterItems = patterns.iteritems() if PY_VERSION_MAJOR < 3  else patterns.items()
+    iterItems = patterns.iteritems() if PY_VERSION_MAJOR < 3 else patterns.items()
 
     for status, regex in iterItems:
         if re.search(regex, page, re.I) is not None:
@@ -56,7 +62,9 @@ def getStatusFromPage(page):
     return 'unknown'
 
 
-# This is the creating configuration file function
+###
+# Config file functions
+###
 def createConfigFile():
     # file = open(filePath, 'w');
 
@@ -70,8 +78,42 @@ def createConfigFile():
     file.close()
 
 
-# This method gets the log in vars.
+def getInfoFromConfig():
+    """
+    Gets the username and password from config files.
+    :return:
+    """
+    # First get the  configuration file.
+    file = open(CONFIG_PATH, 'r')
+    configs = file.read()
+    file.close()
+
+    # Now check if the `username` or `password` parameter is available in config file.
+    # First match the `username`
+    match_username = re.search(r'username(?:[^\S]|)=(?:[^\S]|)(.+)(:?[^\S]|)', configs, re.I)
+    match_password = re.search(r'password(?:[^\S]|)=(?:[^\S]|)(.+)(:?[^\S]|)', configs, re.I)
+
+    if match_password is None or match_username is None:
+        raise Exception("Your configurations file is broken, type ./" + CURRENT_FILE + " -c to reconfigure.")
+
+    return {
+        'username': match_username.group(1).strip(),
+        'password': match_password.group(1).strip(),
+    }
+
+
+###
+# End of config file functions
+###
+
+
+###
+# Login and log out functions
+###
 def getLoginVars():
+    """
+    This method gets the log in vars.
+    """
     # get username and password.
     info = getInfoFromConfig()
 
@@ -89,8 +131,11 @@ def getLoginVars():
     }
 
 
-# this method helps to get log out vars.
 def getLogoutVars():
+    """
+    This method helps to get log out vars.
+    :return:
+    """
     # get username and password.
     info = getInfoFromConfig()
 
@@ -107,49 +152,52 @@ def getLogoutVars():
     }
 
 
-# This function helps to send request.
-def sendRequest(svars, referer):
-    en = urlen(svars)
-    req = Req(SUBMIT_URL, en)
-    req.add_header('referer', str(referer))
-    res = urlo(req)
-    return res.read()
-
-
-# get username and password from config file.
-def getInfoFromConfig():
-    # First get the  configuration file.
-    file = open(CONFIG_PATH, 'r')
-    configs = file.read()
-    file.close()
-
-    # Now check if the `username` or `password` parameter is available in config file.
-    # First match the `username`
-    matchUsername = re.search(r'username(?:[^\S]|)=(?:[^\S]|)(.+)(:?[^\S]|)', configs, re.I)
-    matchPassword = re.search(r'password(?:[^\S]|)=(?:[^\S]|)(.+)(:?[^\S]|)', configs, re.I)
-
-    if matchPassword is None or matchUsername is None:
-        raise Exception("Your configurations file is broken, type ./" + CURRENT_FILE + " -c to reconfigure.")
-
-    return {
-        'username': matchUsername.group(1).strip(),
-        'password': matchPassword.group(1).strip(),
-    }
-
-
-# send log in request.
 def loginUser():
+    """
+    Logs in users.
+    :return:
+    """
     print("Sending request for logging in..")
+    # Check if any previous session is available, then kill and delete them.
+    files = getAllSessionFiles()
+    if files:
+        print("Deleting session files.")
+        deleteAllSessionFiles(files)
+
     time.sleep(3)
-    page = sendRequest(getLoginVars(), REFERRER_LOGIN)
 
+    login_vars = getLoginVars()
+    page = sendRequest(login_vars, REFERRER_LOGIN)
+
+    # Get page status.
+    status = getStatusFromPage(page)
     # Now print the final message from page.
-    print(FINAL_MESSAGES[getStatusFromPage(page)])
+    print(FINAL_MESSAGES[status])
+
+    # Now work with process.
+    if status == 'login':
+        # First create the new process
+        process = Process()
+        Process.write_session({
+            'username': login_vars['username'],
+            'password': login_vars['password']
+        }, process.getProcessId())  # Session name will be valid process id.
+
+        # Now start the process.
+        process.startProcess()
 
 
-# send log out request.
 def logoutUser():
+    """
+    Logs out users.
+    :return:
+    """
     print("Sending request for logging out..")
+    # get the session files.
+    files = getAllSessionFiles()
+    if files:
+        deleteAllSessionFiles(files)
+
     time.sleep(3)
 
     page = sendRequest(getLogoutVars(), REFERRER_LOGOUT)
@@ -158,9 +206,116 @@ def logoutUser():
     print(FINAL_MESSAGES[getStatusFromPage(page)])
 
 
+###
+# End of login logout functions
+###
+
+
+def sendRequest(svars, referer):
+    """
+    This function helps to send request.
+    :param svars:
+    :param referer:
+    :return:
+    """
+    en = urlen(svars)
+    req = Req(SUBMIT_URL, en)
+    req.add_header('referer', str(referer))
+    res = urlo(req)
+    return res.read()
+
+
+###
+# Process and session files method and classes.
+###
+
+def getAllSessionFiles():
+    """
+    This method will help to get all the Session files that are available.
+    :return:
+    """
+    # This statement matches for the session files
+    files = [f for f in os.listdir(SESSION_DIR) if re.match(REGEX_SESSION_FILE_NAME, f)]
+
+    all_files = []
+    for file in files:
+        all_files.append(os.path.join(SESSION_DIR, file))
+
+    return all_files
+
+
+def deleteAllSessionFiles(files):
+    """
+    This method will help with deleting any files.
+    :param files:
+    :return:
+    """
+    if not files:
+        sys.exit()
+    else:
+        for file in files:
+            os.remove(file)
+
+
+class Process:
+    """
+    This class helps to manage process
+    """
+    __processId = ''    # Store the session name.
+    __pickle = None     # Store the pickle object.
+    __vars = {}         # Stores all vars.
+
+    def __init__(self, process_id=None):
+
+        if process_id is not None:
+            self.__processId = process_id
+        else:
+            self.__processId = Process.generateRandomString(30)
+
+    def getProcessId(self):
+        return self.__processId
+
+    def startProcess(self):
+        # proc.py path
+        path_script = os.path.join(CURRENT_DIR, 'proc.py')
+
+        self.__pickle = subprocess.Popen(sys.executable + " " + path_script + " " + self.__processId, shell=True)
+        print(self.__pickle.pid)
+
+    def killProcess(self):
+        # get process
+        self.__pickle.kill()
+
+    @staticmethod
+    def generateRandomString(size):
+        """
+        This method helps you to generate random string.
+        :param size:
+        :return:
+        """
+        return ''.join(
+            random.choice(string.ascii_uppercase + string.digits + string.ascii_lowercase) for _ in range(size))
+
+    @staticmethod
+    def write_session(session, session_unique_name):
+
+        file = open(os.path.join(SESSION_DIR, session_unique_name + SESSION_FILE_EXT), 'wb')
+        pickle.dump(session, file)
+        file.close()
+
+    @staticmethod
+    def read_session(session_file):
+        file = open(os.path.join(SESSION_DIR, session_file), 'rb')
+        session = pickle.load(file)
+        file.close()
+        return session
+
+###
+# End of process and Session files method and classes.
+###
+
+
 # Python 2 AND 3 Compatibility work started here #
-
-
 def Input(str):
     if PY_VERSION_MAJOR < 3:
         return raw_input(str)
@@ -168,7 +323,7 @@ def Input(str):
         return input(str)
 
 
-def Req(url, vars):
+def Req(url, vars=None):
     if PY_VERSION_MAJOR < 3:
         from urllib2 import Request
     else:
@@ -198,8 +353,9 @@ def urlen(vars):
 def printHelp():
     print(
         """
-           PMPL-AUTO LOGIN version %s
-           Please report bugs to our git hub page: https://github.com/boseakash7/pmpl-autologin
+           PMPL-Autologin version %s
+           Please report bugs to our github page: https://github.com/rajajoddar/pmpl-autologin
+           Contributors: Raja Joddar & Akash Bose
 
            example: %s -l
 
@@ -208,7 +364,7 @@ def printHelp():
            -c               configure again for username and password.
            -h --help        show this help.
 
-        """ % (SCRIP_VERION, CURRENT_FILE)
+        """ % (SCRIPT_VERSION, CURRENT_FILE)
     )
 
 
@@ -220,7 +376,7 @@ def checkPythonVersion():
 
 def __main__(argv):
 
-    # First check if the user has installed required pytthon version.
+    # First check if the user has installed required python version.
     checkPythonVersion()
 
     # Now check if the configuration file exists.
@@ -272,5 +428,5 @@ if __name__ == "__main__":
         print("\n\nAs you command, exiting in the middle..")
     except getopt.GetoptError:
         printHelp()
-    except Exception as ex:
-        print("\n\nError: " + str(ex))
+    # except Exception as ex:
+    #     print("\n\nError: " + str(ex))
