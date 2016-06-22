@@ -39,7 +39,7 @@ FINAL_MESSAGES = {
 REGEX_SESSION_FILE_NAME = r'[a-zA-Z0-9]{30}' + SESSION_FILE_EXT
 
 
-def getStatusFromPage(page):
+def get_status_from_page(page):
 
     # we are gonna check ability for every messages one by one.
     # To do that store all the patterns in a variable.
@@ -52,9 +52,9 @@ def getStatusFromPage(page):
         'wup':      b'<([^\S]|)font[^\S](.*)>Wrong username'
     }
 
-    iterItems = patterns.iteritems() if PY_VERSION_MAJOR < 3 else patterns.items()
+    iteritems = patterns.iteritems() if PY_VERSION_MAJOR < 3 else patterns.items()
 
-    for status, regex in iterItems:
+    for status, regex in iteritems:
         if re.search(regex, page, re.I) is not None:
             return status
 
@@ -65,12 +65,12 @@ def getStatusFromPage(page):
 ###
 # Config file functions
 ###
-def createConfigFile():
+def create_config_file():
     # file = open(filePath, 'w');
 
     # Store the username and password
-    username = Input("Please enter your username: ")
-    password = Input("Please enter your password: ")
+    username = _input("Please enter your username: ")
+    password = _input("Please enter your password: ")
 
     # Now create the file.
     file = open(CONFIG_PATH, 'w')
@@ -78,7 +78,7 @@ def createConfigFile():
     file.close()
 
 
-def getInfoFromConfig():
+def get_info_from_config():
     """
     Gets the username and password from config files.
     :return:
@@ -110,12 +110,12 @@ def getInfoFromConfig():
 ###
 # Login and log out functions
 ###
-def getLoginVars():
+def get_login_vars():
     """
     This method gets the log in vars.
     """
     # get username and password.
-    info = getInfoFromConfig()
+    info = get_info_from_config()
 
     # Its now time to create vars.
     return {
@@ -131,13 +131,13 @@ def getLoginVars():
     }
 
 
-def getLogoutVars():
+def get_logout_vars():
     """
     This method helps to get log out vars.
     :return:
     """
     # get username and password.
-    info = getInfoFromConfig()
+    info = get_info_from_config()
 
     return {
         'mode':             "193",
@@ -152,25 +152,25 @@ def getLogoutVars():
     }
 
 
-def loginUser():
+def login_user():
     """
     Logs in users.
     :return:
     """
     print("Sending request for logging in..")
     # Check if any previous session is available, then kill and delete them.
-    files = getAllSessionFiles()
+    files = get_all_session_files()
     if files:
         print("Deleting session files.")
-        deleteAllSessionFiles(files)
+        delete_all_session_files(files)
 
     time.sleep(3)
 
-    login_vars = getLoginVars()
-    page = sendRequest(login_vars, REFERRER_LOGIN)
+    login_vars = get_login_vars()
+    page = send_request(login_vars, REFERRER_LOGIN)
 
     # Get page status.
-    status = getStatusFromPage(page)
+    status = get_status_from_page(page)
     # Now print the final message from page.
     print(FINAL_MESSAGES[status])
 
@@ -181,29 +181,29 @@ def loginUser():
         Process.write_session({
             'username': login_vars['username'],
             'password': login_vars['password']
-        }, process.getProcessId())  # Session name will be valid process id.
+        }, process.get_process_id())  # Session name will be valid process id.
 
         # Now start the process.
-        process.startProcess()
+        process.start_process()
 
 
-def logoutUser():
+def logout_user():
     """
     Logs out users.
     :return:
     """
     print("Sending request for logging out..")
     # get the session files.
-    files = getAllSessionFiles()
+    files = get_all_session_files()
     if files:
-        deleteAllSessionFiles(files)
+        delete_all_session_files(files)
 
     time.sleep(3)
 
-    page = sendRequest(getLogoutVars(), REFERRER_LOGOUT)
+    page = send_request(get_logout_vars(), REFERRER_LOGOUT)
 
     # Now print the final message from page.
-    print(FINAL_MESSAGES[getStatusFromPage(page)])
+    print(FINAL_MESSAGES[get_status_from_page(page)])
 
 
 ###
@@ -211,17 +211,16 @@ def logoutUser():
 ###
 
 
-def sendRequest(svars, referer):
+def send_request(svars, referer):
     """
     This function helps to send request.
     :param svars:
     :param referer:
     :return:
     """
-    en = urlen(svars)
-    req = Req(SUBMIT_URL, en)
-    req.add_header('referer', str(referer))
-    res = urlo(req)
+    request = req(SUBMIT_URL, urlen(svars))
+    request.add_header('referer', str(referer))
+    res = urlo(request)
     return res.read()
 
 
@@ -229,7 +228,7 @@ def sendRequest(svars, referer):
 # Process and session files method and classes.
 ###
 
-def getAllSessionFiles():
+def get_all_session_files():
     """
     This method will help to get all the Session files that are available.
     :return:
@@ -244,7 +243,7 @@ def getAllSessionFiles():
     return all_files
 
 
-def deleteAllSessionFiles(files):
+def delete_all_session_files(files):
     """
     This method will help with deleting any files.
     :param files:
@@ -270,24 +269,23 @@ class Process:
         if process_id is not None:
             self.__processId = process_id
         else:
-            self.__processId = Process.generateRandomString(30)
+            self.__processId = Process.generate_random_string(30)
 
-    def getProcessId(self):
+    def get_process_id(self):
         return self.__processId
 
-    def startProcess(self):
+    def start_process(self):
         # proc.py path
         path_script = os.path.join(CURRENT_DIR, 'proc.py')
 
         self.__pickle = subprocess.Popen(sys.executable + " " + path_script + " " + self.__processId, shell=True)
-        print(self.__pickle.pid)
 
-    def killProcess(self):
+    def kill_process(self):
         # get process
         self.__pickle.kill()
 
     @staticmethod
-    def generateRandomString(size):
+    def generate_random_string(size):
         """
         This method helps you to generate random string.
         :param size:
@@ -316,14 +314,14 @@ class Process:
 
 
 # Python 2 AND 3 Compatibility work started here #
-def Input(str):
+def _input(str):
     if PY_VERSION_MAJOR < 3:
         return raw_input(str)
     else:
         return input(str)
 
 
-def Req(url, vars=None):
+def req(url, vars=None):
     if PY_VERSION_MAJOR < 3:
         from urllib2 import Request
     else:
@@ -339,18 +337,18 @@ def urlo(req):
     return urlopen(req)
 
 
-def urlen(vars):
+def urlen(svars):
     if PY_VERSION_MAJOR < 3:
         from urllib import urlencode
-        return urlencode(vars)
+        return urlencode(svars)
     else:
         from urllib.parse import urlencode
-        return urlencode(vars).encode('UTF-8')
+        return urlencode(svars).encode('UTF-8')
 
 
 # END OF Python 2 AND 3 Compatibility work #
 
-def printHelp():
+def print_help():
     print(
         """
            PMPL-Autologin version %s
@@ -368,7 +366,7 @@ def printHelp():
     )
 
 
-def checkPythonVersion():
+def check_version():
     if PY_VERSION_MAJOR < 3 and PY_VERSION_MINOR < 7:
         print("Python version 2.7 or higher is require.")
         sys.exit()
@@ -377,7 +375,7 @@ def checkPythonVersion():
 def __main__(argv):
 
     # First check if the user has installed required python version.
-    checkPythonVersion()
+    check_version()
 
     # Now check if the configuration file exists.
     # If not then just simply create one.
@@ -385,11 +383,11 @@ def __main__(argv):
         print("\nWelcome to PMPL-AUTOLOGIN.")
         print("We need to configure your username and password.\n")
         print("Warning: write your username and password with maintained caps.\n")
-        createConfigFile()
+        create_config_file()
 
         # check if the user want to log in right now.
-        if Input("Do you want to get login now? (y/n)").lower()[0] == 'y':
-            loginUser()
+        if _input("Do you want to get login now? (y/n)").lower()[0] == 'y':
+            login_user()
             sys.exit()
         else:
             sys.exit()  # Exit the script as user do not want to get logged in
@@ -401,24 +399,24 @@ def __main__(argv):
         print("Please use only one option.")
         sys.exit()
     elif len(argv) < 1:
-        printHelp()
+        print_help()
         sys.exit()
 
     for opt, arg in opts:
 
         if opt == '-c':
             print("Welcome to configuration.")
-            createConfigFile()
+            create_config_file()
             sys.exit()
 
         elif opt == '-h' or opt == '--help':
-            printHelp()
+            print_help()
 
         elif opt == '-L' or opt == '--log-out':
-            logoutUser()
+            logout_user()
 
         elif opt == '-l' or opt == '--log-in':
-            loginUser()
+            login_user()
 
 
 if __name__ == "__main__":
@@ -427,6 +425,6 @@ if __name__ == "__main__":
     except (KeyboardInterrupt, EOFError) as e:
         print("\n\nAs you command, exiting in the middle..")
     except getopt.GetoptError:
-        printHelp()
+        print_help()
     except Exception as ex:
         print("\n\nError: " + str(ex))
