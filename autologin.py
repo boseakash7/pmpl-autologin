@@ -428,5 +428,5 @@ if __name__ == "__main__":
         print("\n\nAs you command, exiting in the middle..")
     except getopt.GetoptError:
         printHelp()
-    # except Exception as ex:
-    #     print("\n\nError: " + str(ex))
+    except Exception as ex:
+        print("\n\nError: " + str(ex))
